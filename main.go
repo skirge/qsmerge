@@ -6,8 +6,6 @@ import (
 	"fmt"
 	"net/url"
 	"os"
-	"sort"
-	"strings"
 )
 
 func main() {
@@ -15,7 +13,7 @@ func main() {
 	flag.BoolVar(&appendMode, "a", false, "Append the value instead of replacing it")
 	flag.Parse()
 
-	seen := make(map[string]bool)
+	seen := make(map[string]url.Values)
 
 	// read URLs on stdin, then replace the values in the query string
 	// with some user-provided value
@@ -27,25 +25,36 @@ func main() {
 			continue
 		}
 
-		// Go's maps aren't ordered, but we want to use all the param names
-		// as part of the key to output only unique requests. To do that, put
-		// them into a slice and then sort it.
-		pp := make([]string, 0)
-		for p, _ := range u.Query() {
-			pp = append(pp, p)
+		var key string
+
+		if ((u.Scheme == "http" || u.Scheme == "https" ) && u.Port() == "") {
+			key = fmt.Sprintf("%s://%s%s", u.Scheme, u.Hostname(), u.EscapedPath())
+		} else {
+			if(u.Port() == "80" || u.Port() == "443") {
+				key = fmt.Sprintf("%s://%s%s", u.Scheme, u.Hostname(), u.EscapedPath())
+			} else {
+				key = fmt.Sprintf("%s://%s:%s%s", u.Scheme, u.Hostname(), u.Port(), u.EscapedPath())
+			}
 		}
-		sort.Strings(pp)
 
-		key := fmt.Sprintf("%s%s?%s", u.Hostname(), u.EscapedPath(), strings.Join(pp, "&"))
+		if _, exists := seen[key]; !exists {
+			seen[key] = make(url.Values)
+		}
 
-		// Only output each host + path + params combination once
-		if _, exists := seen[key]; exists {
+		for k,v := range u.Query() {
+			seen[key][k] = v
+		}
+	}
+
+	for key, vals := range seen {
+		u, err := url.Parse(key);
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Impossible, failed to parse url %s [%s]\n", sc.Text(), err)
 			continue
 		}
-		seen[key] = true
-
 		qs := url.Values{}
-		for param, vv := range u.Query() {
+
+		for param, vv := range vals {
 			if appendMode {
 				qs.Set(param, vv[0]+flag.Arg(0))
 			} else {
