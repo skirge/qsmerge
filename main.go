@@ -6,6 +6,7 @@ import (
 	"fmt"
 	"net/url"
 	"os"
+	"strings"
 )
 
 func main() {
@@ -27,10 +28,10 @@ func main() {
 
 		var key string
 
-		if ((u.Scheme == "http" || u.Scheme == "https" ) && u.Port() == "") {
+		if (u.Scheme == "http" || u.Scheme == "https") && u.Port() == "" {
 			key = fmt.Sprintf("%s://%s%s", u.Scheme, u.Hostname(), u.EscapedPath())
 		} else {
-			if(u.Port() == "80" || u.Port() == "443") {
+			if u.Port() == "80" || u.Port() == "443" {
 				key = fmt.Sprintf("%s://%s%s", u.Scheme, u.Hostname(), u.EscapedPath())
 			} else {
 				key = fmt.Sprintf("%s://%s:%s%s", u.Scheme, u.Hostname(), u.Port(), u.EscapedPath())
@@ -41,13 +42,13 @@ func main() {
 			seen[key] = make(url.Values)
 		}
 
-		for k,v := range u.Query() {
+		for k, v := range u.Query() {
 			seen[key][k] = v
 		}
 	}
 
 	for key, vals := range seen {
-		u, err := url.Parse(key);
+		u, err := url.Parse(key)
 		if err != nil {
 			fmt.Fprintf(os.Stderr, "Impossible, failed to parse url %s [%s]\n", sc.Text(), err)
 			continue
@@ -55,10 +56,14 @@ func main() {
 		qs := url.Values{}
 
 		for param, vv := range vals {
+			payload := flag.Arg(0)
+			payload = strings.ReplaceAll(payload, "{{PARAM_NAME}}", param)
+			payload = strings.ReplaceAll(payload, "{{ORIGINAL_VALUE}}", vv[0])
+			payload = strings.ReplaceAll(payload, "{{HOST}}", u.Hostname())
 			if appendMode {
-				qs.Set(param, vv[0]+flag.Arg(0))
+				qs.Set(param, vv[0]+payload)
 			} else {
-				qs.Set(param, flag.Arg(0))
+				qs.Set(param, payload)
 			}
 		}
 
